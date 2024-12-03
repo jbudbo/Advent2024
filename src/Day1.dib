@@ -1,0 +1,69 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!markdown
+
+# Prep
+
+#!csharp
+
+using System.IO;
+IEnumerable<(int,int)> getData() {
+    using var fs = File.OpenRead("./Day1.data");
+    using var fr = new StreamReader(fs);
+
+    while (!fr.EndOfStream) {
+        string[] lr = fr.ReadLine()?.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        yield return (int.Parse(lr[0]), int.Parse(lr[1]));
+    }
+}
+
+List<int> a = new(), b = new();
+foreach(var (l,r) in getData()) {
+    a.Add(l);
+    b.Add(r);
+}
+
+#!markdown
+
+# Part 1
+
+#!csharp
+
+a.Sort();
+b.Sort();
+
+long distance = 0;
+for (int i = 0, j = a.Count; i < j; i++) {
+    distance += Math.Abs(a[i] - b[i]);
+}
+
+display(distance);
+
+#!markdown
+
+# Part 2
+
+#!csharp
+
+Dictionary<int, int> cache = new();
+
+var grp = b.GroupBy(static i => i).ToDictionary(static g => g.Key, static g => g.Count());
+
+long similarity = 0;
+foreach (var l in a) {
+    if (!cache.TryGetValue(l, out int factor)) {
+        if (!grp.TryGetValue(l, out int c)) {
+            continue;
+        }
+
+        cache[l] = l * c;
+        factor = cache[l];
+    }
+
+    similarity += factor;
+}
+
+display(similarity)

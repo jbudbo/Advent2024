@@ -1,0 +1,162 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!markdown
+
+# Prep
+
+#!csharp
+
+using System.IO;
+using System.Linq;
+static IEnumerable<int[]> getData() {
+    using var fs = File.OpenRead("./Day2.data");
+    using var fr = new StreamReader(fs);
+
+    while (!fr.EndOfStream) {
+        var dataset = fr.ReadLine()?
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(static l => int.Parse(l));
+
+        yield return dataset.ToArray();
+    }
+}
+
+static IEnumerable<T[]> Windowed<T>(this IEnumerable<T> source, int windowSize) {
+    if (windowSize <= 1) throw new InvalidDataException();
+
+    T[] dataset = source as T[] ?? source.ToArray();
+
+    if (windowSize >= dataset.Length) {
+        yield return dataset;
+        yield break;
+    }
+
+    for (int i = 0, j = dataset.Length - windowSize + 1; i < j; i++){
+        yield return dataset[i..(i+windowSize)];
+    }
+}
+
+static IEnumerable<ValueTuple<T,T>> Pairwise<T>(this IEnumerable<T> source) 
+    => source.Windowed(2).Select(static w => (w[0],w[1]));
+
+static IEnumerable<T> WithoutIndex<T>(this IEnumerable<T> source, int index) {
+    T[] dataset = source as T[] ?? source.ToArray();
+    for (int i = 0, j = dataset.Length; i < j; i++) {
+        if (i != index) yield return dataset[i];
+    }
+}
+
+#!markdown
+
+# Structures
+
+#!csharp
+
+using Set = (int indx, Direction dir, int delta, int l, int r);
+
+enum Direction {
+    None = 0, Increasing, Decreasing
+}
+
+IEnumerable<Set[]> GetSets(int except = -1) {
+    int indx = 0;
+    using var e = getData().GetEnumerator();
+
+    while (e.MoveNext()) {
+        if (indx == except) continue;
+
+        var pairs = e.Current.Pairwise();
+
+        yield return pairs
+            .Select(static (p,i) => {
+                var (l,r) = p;
+                int de = l - r;
+                Direction di = de is 0 ? Direction.None : de < 0 ? Direction.Increasing : Direction.Decreasing;
+                return (i, di, Math.Abs(de), l, r);
+            })
+            .ToArray();
+
+        indx++;
+    }
+}
+
+#!markdown
+
+# Part 1
+
+#!csharp
+
+var i = GetSets().Count(static set => {
+    var setChangesDirection = set
+        .GroupBy(static s => s.dir)
+        .Count() > 1;
+    if (setChangesDirection) return false;
+
+    var setIsDramatic = set
+        .Any(static s => s.delta < 1 || s.delta > 3);
+    if (setIsDramatic) return false;
+
+    return true;        
+});
+
+display(i);
+
+#!markdown
+
+# Part 2
+
+#!csharp
+
+int[][] sets = getData().ToArray();
+
+int c = 0;
+for (int i = 0, j = sets.Length; i < j; i++) {
+    int[] set = sets[i];
+
+    if (!IsSafe(set, out int failedAt)) {
+        if (failedAt >= 0 && !IsSafe(set.WithoutIndex(failedAt).ToArray(), out failedAt))
+            continue;
+    }
+    c++;
+}
+
+display($"Safe count '{c}'");
+
+bool IsSafe(int[] set, out int failedAt) {
+    var pairs = set.Pairwise()
+        .Select(static (p, i) => {
+            var (l,r) = p;
+            int de = l - r;
+            Direction di = de is 0 ? Direction.None : de < 0 ? Direction.Increasing : Direction.Decreasing;
+            return (i, di, Math.Abs(de), l, r);
+        });
+    
+    Direction lastDirection = Direction.None;
+
+    foreach (var (indx, dir, delta, _, _) in pairs) {
+        if (indx is 0)
+            lastDirection = dir;
+
+        if (dir is Direction.None) {
+            failedAt = indx;
+            return false;
+        }
+
+        if (delta >= 4) {
+            failedAt = indx;
+            return false;
+        }
+
+        if (dir != lastDirection) {
+            failedAt = indx;
+            return false;
+        }
+
+        lastDirection = dir;
+    }
+
+    failedAt = -1;
+    return true;
+}
